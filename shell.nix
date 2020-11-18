@@ -4,8 +4,9 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, directory, filepath
-      , optparse-applicative, protolude, stdenv, svg-builder, text
+  f = { mkDerivation, base, containers, directory, filepath
+      , optparse-applicative, optparse-text, protolude, random, stdenv
+      , svg-builder, text
       }:
       mkDerivation {
         pname = "svg";
@@ -14,8 +15,8 @@ let
         isLibrary = false;
         isExecutable = true;
         executableHaskellDepends = [
-          base directory filepath optparse-applicative protolude svg-builder
-          text
+          base containers directory filepath optparse-applicative
+          optparse-text protolude random svg-builder text
         ];
         homepage = "https://github.com/janeymunoz/svg.git";
         description = "Command line tool for generating SVGs";

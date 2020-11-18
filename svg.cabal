@@ -18,12 +18,16 @@ cabal-version:       >=1.10
 executable svg
   main-is:             Main.hs
   other-modules:       Svg
+                     , Parser
                      , Types
   build-depends:       base < 5
+                     , containers
                      , directory
                      , filepath
                      , optparse-applicative
+                     , optparse-text
                      , protolude
+                     , random
                      , svg-builder
                      , text
   hs-source-dirs:      src
