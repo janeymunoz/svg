@@ -29,5 +29,7 @@ run (Options (SavePath sp) cmd) = do
     PieChart' options -> do
       out <- Svg.pie $ PieChart (Set.fromList options) Nothing (Radius 100)
       pure $ Svg.wrapper (Size (Width 400, Height 275)) out
+    Test' _ -> do
+      let out = Svg.arc
+      pure $ Svg.wrapper (Size (Width 400, Height 275)) out
   writeFile (Maybe.fromMaybe (cwd </> "out.svg") $ fmap Text.unpack sp) . show $ svg
---  writeFile (cwd </> "out.svg") . show $ svg

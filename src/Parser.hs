@@ -20,10 +20,18 @@ parseSavePath = fmap SavePath .
     <> help "Absolute path at which to save the generated svg file"
     )
 
+parseTest :: Parser Test
+parseTest = optionText $
+    ( long "test"
+    <> short 't'
+    <> help "test!"
+    )
+
 parseCommand :: Parser Command
 parseCommand = subparser . mconcat $ map addInfo
     [ ("bornToDie", fmap BornToDie' parseBornToDie, "Born to die meme")
     , ("pie", fmap PieChart' parsePieChart, "A pretty pie chart")
+    , ("test", fmap Test' parseTest, "test!!!!")
     ]
   where
   addInfo :: (Text, Parser Command, Text) -> Mod CommandFields Command
@@ -68,7 +76,7 @@ parsePieChart = many parseSlice
 
 parseSlice :: Parser Slice
 parseSlice = Slice
-  <$> (fmap Field . optionText $ long "title" <> short 't')
+  <$> (optional . fmap Field . optionText $ long "title" <> short 't')
   <*> (fmap Amount . optionInt $ long "amount" <> short 'a')
   <*> (optional . optionText $ long "color" <> short 'c')
   <*> (optional . optionText $ long "link" <> short 'l')

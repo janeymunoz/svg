@@ -98,7 +98,7 @@ pie pieChart = do
                 Percent p = percentSlice s totalPie
                 degOffset = degTot + (p * 360)
           makeSlice :: Amount -> Radius -> Float -> Slice -> Element
-          makeSlice (Amount totalPie) (Radius radius) deg slice = mconcat
+          makeSlice (Amount totalPie) (Radius radius) deg slice = mconcat $
             [ circle_
                 [ R_ <<- rText
                 , Cx_ <<- rTextX
@@ -128,8 +128,10 @@ pie pieChart = do
                     , ")"
                     ]
                 ]
-            , makeLabel (Amount totalPie) (Radius radius) deg slice
-            ]
+            ] <>
+              case field slice of
+                Nothing -> []
+                Just (Field field'') -> [ makeLabel (Amount totalPie) (Radius radius) deg slice field'' ]
             where
               (Amount portion') = portion slice
               mColor = color slice
@@ -138,8 +140,8 @@ pie pieChart = do
               rTextX = showPack (radius' * 2)
               rTextY = showPack (radius' * 1.5)
               rHidden = showPack (radius' / 2)
-          makeLabel :: Amount -> Radius -> Float -> Slice -> Element
-          makeLabel (Amount t) (Radius r) degTot s =
+          makeLabel :: Amount -> Radius -> Float -> Slice -> Text -> Element
+          makeLabel (Amount t) (Radius r) degTot s field''' =
             polyline_
               [ Points_ <<- pointsStr
               , Fill_ <<- "none"
@@ -159,8 +161,7 @@ pie pieChart = do
                   , Font_size_ <<- (showPack fontSize)
                   , Fill_ <<- "dimgrey"
                   ] 
-                  (toElement f)
-              (Field f) = field s
+                  (toElement field''')
               l = link s
               pointsStr = mconcat
                 [ showPack x1
@@ -242,3 +243,171 @@ addRandomRGBs ss = do
   ssColored <- mapM addRandomRGB $ Set.toList ss
   pure $ Set.fromList ssColored
 
+rgbToHue :: (Int, Int, Int) -> Int
+rgbToHue (r, g, b)
+  | max' == min' = 0 -- achromatic
+  | otherwise = if hue' < 0 then (+) 360 $ hue' * 60 else hue' * 60
+  where
+    r' = div r 255
+    g' = div g 255
+    b' = div b 255
+    max' = maximum [r', g', b']
+    min' = minimum [r', g', b']
+    diff' = max' - min'
+    hue'
+      | max' == r' = div (g' - b') diff'
+      | max' == g' = (+) 2 $ div (b' - r') diff'
+      | otherwise = (+) 4 $ div (r' - g') diff'
+
+sortedRgbArr :: [((Int, Int, Int), Int)]
+sortedRgbArr = sortBy (\((_,_,_),h1) -> \((_,_,_),h2) -> compare h1 h2) . zip rgbs $ map rgbToHue rgbs
+  where
+    rgbs = [ (r, g, b) | r <-[0..255], g <- [0..255], b <- [0..255] ]
+
+colorWheel' :: PieChart
+colorWheel' = PieChart
+  { slices = slices
+  , title = Nothing
+  , radius = Radius 100
+  }
+  where
+    rgbs = sortBy (\((_,_,_),h1) -> \((_,_,_),h2) -> compare h1 h2) $ [ ((r, g, b), rgbToHue (r, g, b)) | r <-[0..25], g <- [75..100], b <- [175..200] ] <> [ ((r, g, b), rgbToHue (r, g, b)) | r <-[75..100], g <- [230..255], b <- [140..160] ]
+    slices :: Set Slice
+    slices = Set.fromList $ map (\(rgb,_) -> mkSlice'  rgb) rgbs
+    mkSlice' :: (Int, Int, Int) -> Slice
+    mkSlice' (r,g,b) = Slice
+      { field = Nothing
+      , portion = Amount 1
+      , color = Just $ mconcat ["rgb(", Text.intercalate "," $ map showPack [r, g, b], ")" ]
+      , link = Nothing
+      }
+
+colorWheel :: IO Element
+colorWheel = do
+  p <- pie colorWheel'
+  pure $ wrapper (Size (Width 400, Height 275)) p 
+
+x :: Element
+x =
+  path_ [ D_ <<- "M 50 50 L 50 0 A 50 50, 0, 0, 1, 100, 50 Z"
+        , Stroke_ <<- "black"
+        , Fill_ <<- "green"
+        , Stroke_width_ <<- "2"
+        ]
+  --path_ [ D_ <<- "M 10 315\nL 110 215\nA 30 50 0 0 1 162.55 162.45\nL 172.55 152.45\nL 315 10"
+  --      , Stroke_ <<- "black"
+  --      , Fill_ <<- "green"
+  --      , Stroke_width_ <<- "2"
+  --      , Fill_opacity_ <<- "0.5"
+  --      ]
+
+-- x ^ 2 + y ^ 2 = 1
+-- c = 2 pi r
+-- A = pi r ^ 2
+-- 
+-- The 12:00 position is considered zero, and increases positively clockwise.
+pointsOnCircle :: Float -> [Float] -> [(Float, Float)]
+pointsOnCircle radius percents = snd $ foldr f (0, []) percents
+  where
+    f :: Float -> (Float, [(Float, Float)]) -> (Float, [(Float, Float)])
+    f percent (radPrevious, coords) = (radNew, (xOrY True ,xOrY False):coords)
+      where
+        radNew = (+) radPrevious $ percentToRad percent
+        xOrY isX = if abs v < 0.1 then 0 else v
+          where
+            v = (*) radius $ (if isX then cos else sin) radNew
+
+pointsOnCircleAdjusted :: (Float, Float) -> [(Float, Float)] -> [(Float, Float)]
+pointsOnCircleAdjusted (centerX, centerY) points = map (\(x,y) -> (x+centerX, centerY - y)) points
+
+-- 360 deg in a circle
+-- I know what percent of the circle
+--
+--             (0, r)
+--
+-- (-r, 0)     (0, 0)     (r, 0)
+--
+--             (0, -r)
+--
+-- sin = o/h  cos = a/h  tan = o/a  h==r
+--
+-- cos(T) = X / R -> X = cos(T) * R
+-- sin(T) = Y / R -> Y = sin(T) * R
+percentToRad :: Float -> Float
+percentToRad percent = percent * 2 * pi
+
+arc :: Element
+arc = foldr x ""
+  [ (200.0,100.0, 0, 0, "red")
+  , (180.90173,158.7785,200.0,100.0, "orange")
+  , (130.90172,195.10565, 180.90173,158.7785, "yellow")
+  , (100.0,200.0, 130.90172,195.10565, "green")
+  , (0.0,100.0, 100.0,200.0, "blue")
+  ]
+  --foldr mkSlice' "" [(50, 0, 100, 50, "blue"), (100, 50, 50, 100, "green")]
+  where
+    x :: (Float, Float, Float, Float, Text) -> Element -> Element
+    x (xStart, yStart, xEnd, yEnd, color) elem = mconcat [ elem,
+      path_
+        [ D_ <<- mconcat
+            ["M 50 50 L "
+            , showPack xStart
+            , " "
+            , showPack yStart
+            , " A 50 50, 0, 0, 1, "
+            , showPack xEnd
+            , " "
+            , showPack yEnd
+            , " Z"
+            ]
+        , Fill_ <<- color
+        ]
+                                                         ]
+    mkSlice' :: (Float, Float, Float, Float, Text) -> Element -> Element
+    mkSlice' (xStart, yStart, xEnd, yEnd, color) elem = mconcat [ elem,
+      path_
+        [ D_ <<- mconcat
+            ["M 50 50 L "
+            , showPack xStart
+            , " "
+            , showPack yStart
+            , " A 50 50, 0, 0, 1, "
+            , showPack xEnd
+            , " "
+            , showPack yEnd
+            , " Z"
+            ]
+        , Fill_ <<- color
+        ]
+                                                                ]
+    mkSlice :: (Float, Float) -> (Float, Float) -> Text -> Element
+    mkSlice (xStart, yStart) (xEnd, yEnd) color = mconcat [
+      path_
+        [ D_ <<- mconcat
+            ["M 50 50 L "
+            , showPack xStart
+            , " "
+            , showPack yStart
+            , " A 50 50, 0, 0, 1, "
+            , showPack xEnd
+            , " "
+            , showPack yEnd
+            , " Z"
+            ]
+        , Fill_ <<- color
+        ]
+      , path_
+        [ D_ <<- mconcat
+            ["M 50 50 L "
+            , showPack xEnd
+            , " "
+            , showPack yEnd
+            , " A 50 50, 0, 0, 1, "
+            , showPack 50
+            , " "
+            , showPack 100
+            , " Z"
+            ]
+        , Fill_ <<- "green"
+        ]
+                                                          ]

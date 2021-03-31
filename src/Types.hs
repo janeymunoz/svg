@@ -8,9 +8,12 @@ newtype SavePath = SavePath (Maybe Text)
 
 data Options = Options SavePath Command
 
+type Test = Text
+
 data Command
   = BornToDie' BornToDie
   | PieChart' [Slice]
+  | Test' Test
 
 data BornToDie =
   BornToDie
@@ -50,7 +53,7 @@ newtype Percent = Percent Float
   deriving (Eq, Ord)
 
 data Slice = Slice
-  { field :: Field
+  { field :: Maybe Field
   , portion :: Amount
   , color :: Maybe Text
   , link :: Maybe Text
